@@ -86,10 +86,6 @@ export default defineNuxtConfig({
     cssPath: '~/assets/css/tailwind.css',
   },
 
-  nitro: {
-    preset: 'vercel',
-  },
-
   typescript: {
     strict: true,
     typeCheck: false,
