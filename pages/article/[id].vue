@@ -15,9 +15,7 @@ const {
 const config = useRuntimeConfig()
 
 // Fetch article on mount
-onMounted(async () => {
-  await loadArticle(articleId)
-})
+await useAsyncData(`article-${articleId}`, () => loadArticle(articleId))
 
 // Dynamic SEO
 useHead({

@@ -33,17 +33,13 @@ const { sentinelRef } = useInfiniteScroll(
     <NuxtErrorBoundary>
       <!-- Articles grid -->
       <div class="card-grid">
-        <TransitionGroup
-          name="card"
-          tag="div"
-          class="contents"
-        >
+        <div class="contents">
           <NewsNewsCard
             v-for="article in articles"
             :key="article.id"
             :article="article"
           />
-        </TransitionGroup>
+        </div>
       </div>
 
       <!-- Error fallback -->

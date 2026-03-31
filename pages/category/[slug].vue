@@ -46,9 +46,7 @@ useSeoMeta({
 })
 
 // Fetch on mount and when slug changes
-onMounted(async () => {
-  await changeCategory(slug.value)
-})
+await useAsyncData(`category-${slug.value}`, () => changeCategory(slug.value))
 
 watch(slug, async (newSlug) => {
   await changeCategory(newSlug)
