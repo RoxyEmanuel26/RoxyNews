@@ -194,6 +194,8 @@ export async function getNextAvailableApi(): Promise<{
 
 /**
  * Executes an HTTP request to the specified news API.
+ * Uses correct parameters per each API's official documentation.
+ * Priority: Indonesian content first, fallback to US if unavailable.
  * @param apiName - The name of the API to fetch from
  * @returns The raw response data from the API
  */
@@ -208,6 +210,8 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
   const url = `${apiConfig.baseUrl}${apiConfig.endpoint}`
 
   switch (apiName) {
+    // Docs: https://worldnewsapi.com/docs/search-news/
+    // Supports: language, source-countries, number
     case 'WorldNewsAPI': {
       return await $fetch(url, {
         method: 'GET',
@@ -220,6 +224,8 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
       })
     }
 
+    // Docs: https://newsdata.io/documentation
+    // Supports: apikey, language, country, size
     case 'NewsDataIO': {
       return await $fetch(url, {
         method: 'GET',
@@ -227,28 +233,38 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
           apikey: config.newsdataApiKey,
           language: 'id',
           country: 'id',
+          size: 10,
         },
       })
     }
 
+    // Docs: https://newsapi.org/docs/endpoints/everything
+    // /top-headlines doesn't support country=id (Indonesia not in list)
+    // /everything supports: q, language, sortBy, pageSize
     case 'NewsAPIOrg': {
       return await $fetch(url, {
         method: 'GET',
         headers: { 'X-Api-Key': config.newsapiOrgKey },
         params: {
-          country: 'id',
+          q: 'indonesia',
+          language: 'id',
+          sortBy: 'publishedAt',
           pageSize: 10,
         },
       })
     }
 
+    // Docs: https://www.thenewsapi.com/documentation
+    // /news/all supports: api_token, language, limit, sort
+    // locale filter requires Standard plan, so we skip it
     case 'TheNewsAPI': {
       return await $fetch(url, {
         method: 'GET',
         params: {
           api_token: config.thenewsApiKey,
           language: 'id',
-          locale: 'id',
+          limit: 10,
+          sort: 'published_at',
         },
       })
     }
@@ -259,86 +275,120 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
 }
 
 /**
- * Main orchestrator: Executes a complete fetch cycle.
- * 1. Resets daily quotas if needed
- * 2. Finds the next available API via round-robin
- * 3. Fetches articles from the API
- * 4. Normalizes the response
- * 5. Deduplicates against existing articles
- * 6. Inserts new articles into the database
- * 7. Logs the result
- * @returns FetchCycleResult with stats about the cycle
+ * Fetches from a single API with error handling, normalization, dedup, and DB insert.
+ * @returns Stats for this single API call
  */
-export async function executeFetchCycle(): Promise<FetchCycleResult> {
+async function fetchAndProcessSingleApi(apiName: ApiSourceName): Promise<{
+  apiName: ApiSourceName
+  fetched: number
+  inserted: number
+  skipped: number
+  error: string | null
+}> {
   try {
-    // Step 1: Reset quotas if it's a new day
-    await resetDailyQuotas()
-
-    // Step 2: Find next available API
-    const nextApi = await getNextAvailableApi()
-    if (!nextApi) {
-      return {
-        success: true,
-        api_used: null,
-        articles_fetched: 0,
-        articles_inserted: 0,
-        articles_skipped: 0,
-        error: 'All APIs at quota threshold — serving from cache',
+    // Check quota before calling
+    const quotas = await getQuotaStatus()
+    const quota = quotas.find((q) => q.api_name === apiName)
+    if (quota) {
+      const usageRatio = quota.daily_limit > 0 ? quota.used_today / quota.daily_limit : 1
+      if (usageRatio >= QUOTA_THRESHOLD) {
+        const msg = `Quota at ${Math.round(usageRatio * 100)}%`
+        console.log(`[Rotator] Skipping ${apiName} — ${msg}`)
+        await logApiCall(apiName, 'skipped', 0, msg)
+        return { apiName, fetched: 0, inserted: 0, skipped: 0, error: msg }
       }
     }
 
-    console.log(`[Rotator] Fetching from ${nextApi.apiName}...`)
+    console.log(`[Rotator] Fetching from ${apiName}...`)
 
-    // Step 3: Fetch from API
-    let rawData: unknown
-    try {
-      rawData = await fetchFromApi(nextApi.apiName)
-    } catch (fetchError) {
-      const errorMsg = fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'
-      console.error(`[Rotator] Fetch failed for ${nextApi.apiName}: ${errorMsg}`)
-      await logApiCall(nextApi.apiName, 'failed', 0, errorMsg)
-      return {
-        success: false,
-        api_used: nextApi.apiName,
-        articles_fetched: 0,
-        articles_inserted: 0,
-        articles_skipped: 0,
-        error: errorMsg,
-      }
-    }
+    // Fetch
+    const rawData = await fetchFromApi(apiName)
 
-    // Step 4: Normalize
-    const normalized = normalizeArticles(nextApi.apiName, rawData)
-    console.log(`[Rotator] Normalized ${normalized.length} articles from ${nextApi.apiName}`)
+    // Normalize
+    const normalized = normalizeArticles(apiName, rawData)
+    console.log(`[Rotator] Normalized ${normalized.length} articles from ${apiName}`)
 
-    // Step 5: Deduplicate
+    // Deduplicate
     const { inserted: uniqueArticles, skipped } = await deduplicateArticles(normalized)
-    console.log(`[Rotator] After dedup: ${uniqueArticles.length} new, ${skipped} skipped`)
+    console.log(`[Rotator] ${apiName}: ${uniqueArticles.length} new, ${skipped} dupes`)
 
-    // Step 6: Insert into DB
+    // Insert into DB
     let insertedCount = 0
     for (const article of uniqueArticles) {
       const wasInserted = await insertArticle(article)
       if (wasInserted) insertedCount++
     }
 
-    // Step 7: Increment quota usage
-    await incrementQuotaUsage(nextApi.apiName)
+    // Increment quota & log
+    await incrementQuotaUsage(apiName)
+    await logApiCall(apiName, 'success', normalized.length, null)
 
-    // Step 8: Log success
-    await logApiCall(nextApi.apiName, 'success', normalized.length, null)
+    console.log(`[Rotator] ${apiName} done: ${insertedCount} inserted, ${skipped} skipped`)
 
-    console.log(
-      `[Rotator] Cycle complete: ${insertedCount} inserted, ${skipped} skipped from ${nextApi.apiName}`
+    return { apiName, fetched: normalized.length, inserted: insertedCount, skipped, error: null }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+    console.error(`[Rotator] ${apiName} failed: ${errorMsg}`)
+    await logApiCall(apiName, 'failed', 0, errorMsg)
+    return { apiName, fetched: 0, inserted: 0, skipped: 0, error: errorMsg }
+  }
+}
+
+/**
+ * Main orchestrator: Executes a complete fetch cycle calling ALL 4 APIs in parallel.
+ * Each API is called independently — if one fails, the others still succeed.
+ * 1. Resets daily quotas if needed
+ * 2. Calls all 4 APIs in parallel
+ * 3. Each call: fetch → normalize → deduplicate → insert → log
+ * 4. Returns combined stats
+ * @returns FetchCycleResult with aggregate stats
+ */
+export async function executeFetchCycle(): Promise<FetchCycleResult> {
+  try {
+    // Step 1: Reset quotas if it's a new day
+    await resetDailyQuotas()
+
+    // Step 2: Call ALL 4 APIs in parallel
+    const apiNames = API_CONFIGS.map((c) => c.name)
+    console.log(`[Rotator] Fetching from ALL ${apiNames.length} APIs: ${apiNames.join(', ')}`)
+
+    const results = await Promise.allSettled(
+      apiNames.map((name) => fetchAndProcessSingleApi(name))
     )
 
+    // Step 3: Aggregate results
+    let totalFetched = 0
+    let totalInserted = 0
+    let totalSkipped = 0
+    const apisUsed: string[] = []
+    const errors: string[] = []
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const r = result.value
+        totalFetched += r.fetched
+        totalInserted += r.inserted
+        totalSkipped += r.skipped
+        if (r.fetched > 0) apisUsed.push(r.apiName)
+        if (r.error) errors.push(`${r.apiName}: ${r.error}`)
+      } else {
+        errors.push(`Unknown: ${result.reason}`)
+      }
+    }
+
+    const summary = apisUsed.length > 0
+      ? `Used: ${apisUsed.join(', ')}`
+      : 'No APIs returned articles'
+
+    console.log(`[Rotator] Cycle complete: ${totalInserted} inserted, ${totalSkipped} skipped from ${apisUsed.length} APIs`)
+
     return {
-      success: true,
-      api_used: nextApi.apiName,
-      articles_fetched: normalized.length,
-      articles_inserted: insertedCount,
-      articles_skipped: skipped,
-      error: null,
+      success: apisUsed.length > 0,
+      api_used: apisUsed.join(', ') as ApiSourceName | null,
+      articles_fetched: totalFetched,
+      articles_inserted: totalInserted,
+      articles_skipped: totalSkipped,
+      error: errors.length > 0 ? `${summary}. Errors: ${errors.join('; ')}` : null,
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'

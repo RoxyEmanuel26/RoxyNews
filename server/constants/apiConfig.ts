@@ -23,7 +23,7 @@ export const API_CONFIGS: ApiConfig[] = [
     name: 'NewsAPIOrg',
     dailyLimit: 1000,
     baseUrl: 'https://newsapi.org/v2',
-    endpoint: '/top-headlines',
+    endpoint: '/everything',
     envKey: 'newsapiOrgKey',
   },
   {
@@ -31,7 +31,7 @@ export const API_CONFIGS: ApiConfig[] = [
     name: 'TheNewsAPI',
     dailyLimit: 100,
     baseUrl: 'https://api.thenewsapi.com/v1',
-    endpoint: '/news/top',
+    endpoint: '/news/all',
     envKey: 'thenewsApiKey',
   },
 ]
