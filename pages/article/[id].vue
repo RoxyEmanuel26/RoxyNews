@@ -1,23 +1,27 @@
 <script setup lang="ts">
+import type { Article } from '~/types'
 import { formatDistanceToNow, format } from 'date-fns'
 
 const route = useRoute()
 const articleId = route.params.id as string
 
-const {
-  currentArticle,
-  relatedArticles,
-  loading,
-  error,
-  loadArticle,
-} = useNews()
-
 const config = useRuntimeConfig()
 
-// Fetch article on mount
-await useAsyncData(`article-${articleId}`, async () => {
-  await loadArticle(articleId)
-  return true
+// Fetch article directly — useFetch properly handles SSR payload
+const { data: articleResponse, status } = await useFetch<{
+  success: boolean
+  data: { article: Article; related: Article[] }
+}>(`/api/news/${articleId}`, {
+  key: `article-${articleId}`,
+})
+
+const currentArticle = computed<Article | null>(() => articleResponse.value?.data?.article ?? null)
+const relatedArticles = computed<Article[]>(() => articleResponse.value?.data?.related ?? [])
+const loading = computed<boolean>(() => status.value === 'pending')
+const error = computed<string | null>(() => {
+  if (status.value === 'error') return 'Failed to fetch article'
+  if (status.value === 'success' && !currentArticle.value) return 'Article not found'
+  return null
 })
 
 // Dynamic SEO
@@ -40,6 +44,7 @@ useSeoMeta({
   twitterImage: () => currentArticle.value?.image_url ?? '',
 })
 
+// Client-only relative time to avoid hydration mismatch
 const isMounted = ref<boolean>(false)
 
 onMounted(() => {
@@ -174,7 +179,7 @@ async function copyLink(): Promise<void> {
             </span>
             <span class="text-surface-300 dark:text-surface-700">•</span>
             <time :datetime="currentArticle.published_at" :title="formattedDate">
-              {{ relativeTime }}
+              {{ relativeTime || formattedDate }}
             </time>
           </div>
 

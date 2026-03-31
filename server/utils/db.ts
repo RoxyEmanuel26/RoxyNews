@@ -63,10 +63,16 @@ export async function initDatabase(): Promise<void> {
       daily_limit   INTEGER NOT NULL,
       last_reset    TEXT NOT NULL
     );
-    INSERT OR IGNORE INTO api_quota_log VALUES ('WorldNewsAPI', 0, 1000, date('now'));
+    INSERT OR IGNORE INTO api_quota_log VALUES ('WorldNewsAPI', 0, 50,   date('now'));
     INSERT OR IGNORE INTO api_quota_log VALUES ('NewsDataIO',   0, 200,  date('now'));
-    INSERT OR IGNORE INTO api_quota_log VALUES ('NewsAPIOrg',   0, 100,  date('now'));
+    INSERT OR IGNORE INTO api_quota_log VALUES ('NewsAPIOrg',   0, 1000, date('now'));
     INSERT OR IGNORE INTO api_quota_log VALUES ('TheNewsAPI',   0, 100,  date('now'));
+
+    -- Sync daily_limit values with apiConfig.ts (fixes any stale DB rows)
+    UPDATE api_quota_log SET daily_limit = 50   WHERE api_name = 'WorldNewsAPI';
+    UPDATE api_quota_log SET daily_limit = 200  WHERE api_name = 'NewsDataIO';
+    UPDATE api_quota_log SET daily_limit = 1000 WHERE api_name = 'NewsAPIOrg';
+    UPDATE api_quota_log SET daily_limit = 100  WHERE api_name = 'TheNewsAPI';
 
     -- API call history logs
     CREATE TABLE IF NOT EXISTS api_call_logs (

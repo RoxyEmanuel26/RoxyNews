@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CategorySlug } from '~/types'
+import type { Article, PaginatedResponse, CategorySlug } from '~/types'
 import { CATEGORIES } from '~/server/constants/apiConfig'
 
 const route = useRoute()
@@ -13,15 +13,6 @@ const slug = computed<CategorySlug>(() => {
 const categoryInfo = computed(() => {
   return CATEGORIES.find((c) => c.slug === slug.value) ?? { slug: 'general', label: 'General', icon: '📰' }
 })
-
-const {
-  articles,
-  loading,
-  hasMore,
-  activeCategory,
-  changeCategory,
-  loadMoreNews,
-} = useNews()
 
 const config = useRuntimeConfig()
 
@@ -45,14 +36,37 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
 })
 
-// Fetch on mount and when slug changes
-await useAsyncData(`category-${slug.value}`, async () => {
-  await changeCategory(slug.value)
-  return true
+// Fetch articles directly — useFetch properly handles SSR payload
+const { data: newsResponse, status, refresh } = await useFetch<PaginatedResponse<Article>>('/api/news', {
+  query: computed(() => {
+    const q: Record<string, string | number> = { page: 1, limit: 12 }
+    if (slug.value && slug.value !== 'general') {
+      q['category'] = slug.value
+    }
+    return q
+  }),
+  key: `category-${slug.value}`,
+  watch: false,
 })
 
-watch(slug, async (newSlug) => {
-  await changeCategory(newSlug)
+// Derived state
+const articles = computed<Article[]>(() => newsResponse.value?.data ?? [])
+const loading = computed<boolean>(() => status.value === 'pending')
+const hasMore = computed<boolean>(() => newsResponse.value?.hasMore ?? false)
+
+// Reload when slug changes
+watch(slug, async () => {
+  page.value = 1
+  extraArticles.value = []
+  await refresh()
+})
+
+// Load more
+const page = ref<number>(1)
+const extraArticles = ref<Article[]>([])
+
+const allArticles = computed<Article[]>(() => {
+  return [...articles.value, ...extraArticles.value]
 })
 
 async function onCategoryChange(category: CategorySlug): Promise<void> {
@@ -60,7 +74,19 @@ async function onCategoryChange(category: CategorySlug): Promise<void> {
 }
 
 async function onLoadMore(): Promise<void> {
-  await loadMoreNews()
+  if (loading.value || !hasMore.value) return
+  page.value++
+  try {
+    const q: Record<string, string | number> = { page: page.value, limit: 12 }
+    if (slug.value && slug.value !== 'general') {
+      q['category'] = slug.value
+    }
+    const moreData = await $fetch<PaginatedResponse<Article>>('/api/news', { params: q })
+    extraArticles.value = [...extraArticles.value, ...moreData.data]
+  } catch (err) {
+    console.error('[Category] Failed to load more:', err)
+    page.value--
+  }
 }
 </script>
 
@@ -81,13 +107,13 @@ async function onLoadMore(): Promise<void> {
 
     <!-- Category Filter -->
     <NewsNewsCategoryFilter
-      :active-category="activeCategory"
+      :active-category="slug"
       @update:active-category="onCategoryChange"
     />
 
     <!-- News Grid -->
     <NewsNewsList
-      :articles="articles"
+      :articles="allArticles"
       :loading="loading"
       :has-more="hasMore"
       @load-more="onLoadMore"
