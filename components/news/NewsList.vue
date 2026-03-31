@@ -34,10 +34,11 @@ const { sentinelRef } = useInfiniteScroll(
       <!-- Articles grid -->
       <div class="card-grid">
         <div class="contents">
-          <NewsNewsCard
-            v-for="article in articles"
+          <NewsCard
+            v-for="(article, index) in articles"
             :key="article.id"
             :article="article"
+            :featured="index === 0"
           />
         </div>
       </div>
@@ -60,7 +61,7 @@ const { sentinelRef } = useInfiniteScroll(
       v-if="loading && articles.length === 0"
       class="card-grid"
     >
-      <NewsNewsCardSkeleton v-for="n in 12" :key="`skeleton-${n}`" />
+      <NewsCardSkeleton v-for="n in 12" :key="`skeleton-${n}`" />
     </div>
 
     <!-- Loading indicator for "load more" -->

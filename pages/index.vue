@@ -92,12 +92,12 @@ async function onLoadMore(): Promise<void> {
   <div class="space-y-8">
     <!-- Hero Section -->
     <section id="hero-section">
-      <NewsNewsHero :article="heroArticle" />
+      <NewsHero :article="heroArticle" />
     </section>
 
     <!-- Category Filter -->
     <section id="category-filters">
-      <NewsNewsCategoryFilter
+      <NewsCategoryFilter
         :active-category="activeCategory"
         @update:active-category="onCategoryChange"
       />
@@ -105,7 +105,7 @@ async function onLoadMore(): Promise<void> {
 
     <!-- News Grid -->
     <section id="news-grid">
-      <NewsNewsList
+      <NewsList
         :articles="allGridArticles"
         :loading="loading || isLoadingMore"
         :has-more="hasMore"

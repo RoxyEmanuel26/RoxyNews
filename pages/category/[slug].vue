@@ -112,13 +112,13 @@ async function onLoadMore(): Promise<void> {
     </div>
 
     <!-- Category Filter -->
-    <NewsNewsCategoryFilter
+    <NewsCategoryFilter
       :active-category="slug"
       @update:active-category="onCategoryChange"
     />
 
     <!-- News Grid -->
-    <NewsNewsList
+    <NewsList
       :articles="allArticles"
       :loading="loading || isLoadingMore"
       :has-more="hasMore"
