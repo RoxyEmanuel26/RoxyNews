@@ -5,7 +5,7 @@ export const API_CONFIGS: ApiConfig[] = [
   {
     id: 0,
     name: 'WorldNewsAPI',
-    dailyLimit: 1000,
+    dailyLimit: 50,
     baseUrl: 'https://api.worldnewsapi.com',
     endpoint: '/search-news',
     envKey: 'worldnewsApiKey',
@@ -21,7 +21,7 @@ export const API_CONFIGS: ApiConfig[] = [
   {
     id: 2,
     name: 'NewsAPIOrg',
-    dailyLimit: 100,
+    dailyLimit: 1000,
     baseUrl: 'https://newsapi.org/v2',
     endpoint: '/top-headlines',
     envKey: 'newsapiOrgKey',
