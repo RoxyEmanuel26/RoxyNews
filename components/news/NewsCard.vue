@@ -2,6 +2,8 @@
 import type { Article } from '~/types'
 import { formatDistanceToNow } from 'date-fns'
 
+const { proxyImageUrl } = useImageProxy()
+
 interface Props {
   article: Article
 }
@@ -10,7 +12,7 @@ const props = defineProps<Props>()
 
 const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIyNSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIyNSIgZmlsbD0iIzFlMjkzYiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjQ3NDhiIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
 
-const imageUrl = computed<string>(() => props.article.image_url || fallbackImage)
+const imageUrl = computed<string>(() => proxyImageUrl(props.article.image_url) || fallbackImage)
 
 const isMounted = ref<boolean>(false)
 

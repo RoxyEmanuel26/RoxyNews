@@ -2,6 +2,8 @@
 import type { Article } from '~/types'
 import { formatDistanceToNow } from 'date-fns'
 
+const { proxyImageUrl } = useImageProxy()
+
 interface Props {
   article: Article | null
 }
@@ -14,7 +16,7 @@ const imageError = ref<boolean>(false)
 
 const imageUrl = computed<string>(() => {
   if (imageError.value || !props.article?.image_url) return fallbackImage
-  return props.article.image_url
+  return proxyImageUrl(props.article.image_url) || fallbackImage
 })
 
 const isMounted = ref<boolean>(false)

@@ -2,6 +2,7 @@
 import type { Article } from '~/types'
 import { formatDistanceToNow, format } from 'date-fns'
 
+const { proxyImageUrl } = useImageProxy()
 const route = useRoute()
 const articleId = route.params.id as string
 
@@ -137,7 +138,7 @@ async function copyLink(): Promise<void> {
       <div class="relative rounded-2xl overflow-hidden mb-8">
         <div class="aspect-[21/9]">
           <img
-            :src="imageError ? fallbackImage : (currentArticle.image_url ?? fallbackImage)"
+            :src="imageError ? fallbackImage : (proxyImageUrl(currentArticle.image_url) ?? fallbackImage)"
             :alt="currentArticle.title"
             class="w-full h-full object-cover"
             @error="handleImageError"
@@ -273,7 +274,7 @@ async function copyLink(): Promise<void> {
                 <div class="flex gap-3">
                   <img
                     v-if="related.image_url"
-                    :src="related.image_url"
+                    :src="proxyImageUrl(related.image_url)"
                     :alt="related.title"
                     class="w-16 h-16 rounded-lg object-cover flex-shrink-0"
                     loading="lazy"
