@@ -17,8 +17,14 @@ const imageUrl = computed<string>(() => {
   return props.article.image_url
 })
 
+const isMounted = ref<boolean>(false)
+
+onMounted(() => {
+  isMounted.value = true
+})
+
 const relativeTime = computed<string>(() => {
-  if (!props.article?.published_at) return ''
+  if (!isMounted.value || !props.article?.published_at) return ''
   try {
     return formatDistanceToNow(new Date(props.article.published_at), {
       addSuffix: true,

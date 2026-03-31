@@ -12,7 +12,14 @@ const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ
 
 const imageUrl = computed<string>(() => props.article.image_url || fallbackImage)
 
+const isMounted = ref<boolean>(false)
+
+onMounted(() => {
+  isMounted.value = true
+})
+
 const relativeTime = computed<string>(() => {
+  if (!isMounted.value) return ''
   try {
     return formatDistanceToNow(new Date(props.article.published_at), {
       addSuffix: true,

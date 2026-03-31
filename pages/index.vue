@@ -41,7 +41,10 @@ useSeoMeta({
 })
 
 // Fetch articles on mount
-await useAsyncData('home-news', () => refreshNews())
+await useAsyncData('home-news', async () => {
+  await refreshNews()
+  return true
+})
 
 async function onCategoryChange(category: CategorySlug): Promise<void> {
   await changeCategory(category)

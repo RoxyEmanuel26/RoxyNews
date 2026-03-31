@@ -15,7 +15,10 @@ const {
 const config = useRuntimeConfig()
 
 // Fetch article on mount
-await useAsyncData(`article-${articleId}`, () => loadArticle(articleId))
+await useAsyncData(`article-${articleId}`, async () => {
+  await loadArticle(articleId)
+  return true
+})
 
 // Dynamic SEO
 useHead({
@@ -37,8 +40,14 @@ useSeoMeta({
   twitterImage: () => currentArticle.value?.image_url ?? '',
 })
 
+const isMounted = ref<boolean>(false)
+
+onMounted(() => {
+  isMounted.value = true
+})
+
 const relativeTime = computed<string>(() => {
-  if (!currentArticle.value?.published_at) return ''
+  if (!isMounted.value || !currentArticle.value?.published_at) return ''
   try {
     return formatDistanceToNow(new Date(currentArticle.value.published_at), { addSuffix: true })
   } catch {
