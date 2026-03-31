@@ -213,9 +213,9 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
         method: 'GET',
         headers: { 'x-api-key': config.worldnewsApiKey },
         params: {
-          language: 'en',
+          language: 'id',
           number: 10,
-          'source-countries': 'id,us,gb',
+          'source-countries': 'id',
         },
       })
     }
@@ -225,8 +225,8 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
         method: 'GET',
         params: {
           apikey: config.newsdataApiKey,
-          language: 'en,id',
-          country: 'id,us',
+          language: 'id',
+          country: 'id',
         },
       })
     }
@@ -236,7 +236,7 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
         method: 'GET',
         headers: { 'X-Api-Key': config.newsapiOrgKey },
         params: {
-          language: 'en',
+          country: 'id',
           pageSize: 10,
         },
       })
@@ -247,8 +247,8 @@ export async function fetchFromApi(apiName: ApiSourceName): Promise<unknown> {
         method: 'GET',
         params: {
           api_token: config.thenewsApiKey,
-          language: 'en',
-          locale: 'us',
+          language: 'id',
+          locale: 'id',
         },
       })
     }
