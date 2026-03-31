@@ -14,7 +14,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'NewsAggregator — Your Smart News Feed',
-      htmlAttrs: { lang: 'en' },
+      htmlAttrs: { lang: 'en', class: 'dark' },
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
