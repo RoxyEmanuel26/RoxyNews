@@ -36,37 +36,40 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
 })
 
-// Fetch articles directly — useFetch properly handles SSR payload
-const { data: newsResponse, status, refresh } = await useFetch<PaginatedResponse<Article>>('/api/news', {
-  query: computed(() => {
-    const q: Record<string, string | number> = { page: 1, limit: 12 }
+const isLoadingMore = ref(false)
+const page = ref(1)
+const extraArticles = ref<Article[]>([])
+
+// Fetch articles — useAsyncData with $fetch for proper SSR
+const { data: newsResponse, status } = await useAsyncData(
+  `category-${slug.value}`,
+  () => {
+    const params: Record<string, string | number> = { page: 1, limit: 12 }
     if (slug.value && slug.value !== 'general') {
-      q['category'] = slug.value
+      params['category'] = slug.value
     }
-    return q
-  }),
-  key: `category-${slug.value}`,
-  watch: false,
-})
+    return $fetch<PaginatedResponse<Article>>('/api/news', { params })
+  },
+)
 
 // Derived state
 const articles = computed<Article[]>(() => newsResponse.value?.data ?? [])
 const loading = computed<boolean>(() => status.value === 'pending')
 const hasMore = computed<boolean>(() => newsResponse.value?.hasMore ?? false)
 
-// Reload when slug changes
-watch(slug, async () => {
-  page.value = 1
-  extraArticles.value = []
-  await refresh()
-})
-
-// Load more
-const page = ref<number>(1)
-const extraArticles = ref<Article[]>([])
-
 const allArticles = computed<Article[]>(() => {
   return [...articles.value, ...extraArticles.value]
+})
+
+// Reload when slug changes
+watch(slug, async (newSlug) => {
+  page.value = 1
+  extraArticles.value = []
+  const params: Record<string, string | number> = { page: 1, limit: 12 }
+  if (newSlug && newSlug !== 'general') {
+    params['category'] = newSlug
+  }
+  newsResponse.value = await $fetch<PaginatedResponse<Article>>('/api/news', { params })
 })
 
 async function onCategoryChange(category: CategorySlug): Promise<void> {
@@ -74,18 +77,21 @@ async function onCategoryChange(category: CategorySlug): Promise<void> {
 }
 
 async function onLoadMore(): Promise<void> {
-  if (loading.value || !hasMore.value) return
+  if (isLoadingMore.value || !hasMore.value) return
+  isLoadingMore.value = true
   page.value++
   try {
-    const q: Record<string, string | number> = { page: page.value, limit: 12 }
+    const params: Record<string, string | number> = { page: page.value, limit: 12 }
     if (slug.value && slug.value !== 'general') {
-      q['category'] = slug.value
+      params['category'] = slug.value
     }
-    const moreData = await $fetch<PaginatedResponse<Article>>('/api/news', { params: q })
+    const moreData = await $fetch<PaginatedResponse<Article>>('/api/news', { params })
     extraArticles.value = [...extraArticles.value, ...moreData.data]
   } catch (err) {
     console.error('[Category] Failed to load more:', err)
     page.value--
+  } finally {
+    isLoadingMore.value = false
   }
 }
 </script>
@@ -114,7 +120,7 @@ async function onLoadMore(): Promise<void> {
     <!-- News Grid -->
     <NewsNewsList
       :articles="allArticles"
-      :loading="loading"
+      :loading="loading || isLoadingMore"
       :has-more="hasMore"
       @load-more="onLoadMore"
     />
