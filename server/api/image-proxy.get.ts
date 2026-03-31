@@ -52,11 +52,48 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const contentType = response.headers.get('content-type') || ''
+    const rawContentType = response.headers.get('content-type') || ''
 
-    // Only proxy actual images
+    // Map of common image extensions to MIME types
+    const extMimeMap: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.avif': 'image/avif',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.bmp': 'image/bmp',
+    }
+
+    // Determine the actual content type:
+    // 1. Use the server's content-type if it's an image type
+    // 2. Fallback: infer from the URL file extension
+    let contentType = rawContentType
     if (!contentType.startsWith('image/')) {
-      throw createError({ statusCode: 415, message: 'Upstream resource is not an image' })
+      const pathname = parsed.pathname.toLowerCase()
+      const ext = pathname.substring(pathname.lastIndexOf('.'))
+      const inferredType = extMimeMap[ext]
+
+      if (inferredType) {
+        contentType = inferredType
+      } else {
+        // Last resort: check if the response body looks like a JPEG/PNG by magic bytes
+        const peek = Buffer.from(await response.clone().arrayBuffer())
+        const isJpeg = peek[0] === 0xFF && peek[1] === 0xD8
+        const isPng = peek[0] === 0x89 && peek[1] === 0x50
+        const isGif = peek[0] === 0x47 && peek[1] === 0x49
+        const isWebp = peek[0] === 0x52 && peek[1] === 0x49 // RIFF
+
+        if (isJpeg) contentType = 'image/jpeg'
+        else if (isPng) contentType = 'image/png'
+        else if (isGif) contentType = 'image/gif'
+        else if (isWebp) contentType = 'image/webp'
+        else {
+          throw createError({ statusCode: 415, message: `Upstream resource is not an image (content-type: ${rawContentType})` })
+        }
+      }
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
